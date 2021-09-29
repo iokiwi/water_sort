@@ -42,6 +42,14 @@ def vial_is_uniform(vial):
 
     return all([vial[i] == vial[0] for i in range(len(vial))])
 
+def get_contiguous_volume(vial):
+    c = 1
+    for v in range(len(vial)-2, 0, -1):
+        # print(v)
+        if vial[v] == vial[-1]:
+            c += 1
+    return c
+
 def vial_is_complete(vial):
     return vial_is_uniform(vial) and len(vial) == 4
 
@@ -59,12 +67,35 @@ def find_uniform_vials(vials):
             uniform[vials[i][0]] = i
     return uniform
 
+def vial_is_empty(vial):
+    return len(vial) == 0
+
 def find_empty_vials(vials):
     empty = []
     for i in range(len(vials)):
-        if len(vials[i]) == 0:
+        if vial_is_empty(vials[i]):
             empty.append(i)
     return empty
+
+def collect_vial_properties(vials):
+
+    empty = []
+    complete = []
+    uniform = []
+    
+    for i in range(len(vials)):
+        if vial_is_empty(vials[i]):
+            empty.append(i)
+        elif vial_is_complete(vials[i]):
+            complete.append(i)
+        elif vial_is_uniform(vials[i]):
+            uniform.append(vials[i])
+    
+    return {
+        "empty": empty,
+        "complete": complete,
+        "uniform": uniform,
+    }
 
 def get_transformations(state):
     transformations = []
@@ -99,7 +130,9 @@ def get_transformations(state):
             # If i can be poured into j, add it as an option
             # TODO: Only add it as an option if the whole of y can be poured into the whole of j
             if can_pour(vials[i], vials[j]):
-                transformations.append((i, j))
+                # Only add it as an option if the whole of y can be poured into the whole of j
+                if get_contiguous_volume(vials[i]) <= (4 - len(vials[j])):
+                    transformations.append((i, j))
 
         # If there is one or more empty vial available, pour i into first available empty vial
         if len(empty_vials) > 0 and i not in uniform_vials.values():
@@ -134,45 +167,46 @@ def apply_transformation(state, transformation):
 
     vial1 = state["vials"][v1]
     vial2 = state["vials"][v2]
-
     vial1, vial2 = pour(vial1, vial2)
+
     state["vials"][v1] = vial1
     state["vials"][v2] = vial2
+
     state = trim_empty_vials(state)
+    state["transformation_history"].append(transformation)
     return state
 
 state_history = []
 
 def foo(state, depth=0, max_depth=5, transformation_history=None):
 
+    # print(depth, "/", max_depth)
     global state_history
-    state_history.append(state)
+    state_history.append(state["vials"])
 
     if transformation_history is None:
         transformation_history = []
 
     transformations = get_transformations(state)
-    histories[depth] = transformation_history
+    histories[depth] = state
 
     if depth < max_depth:
         for transformation in transformations:
             next_state = apply_transformation(state, transformation)
-            if next_state not in state_history:
+            if next_state["vials"] not in state_history:
                 foo(
                     next_state,
                     depth=depth+1,
                     max_depth=max_depth,
-                    transformation_history=transformation_history+[transformation]
                 )
-            else:
-                pass
     else:
+        print("Max Depth Reached:", max_depth)
         if len(transformations) > 0:
             histories[depth] = transformation_history
 
 def replay_history(state, history):
     for h in history:
-        print(h)
+        print("State after applying:", h)
         state = apply_transformation(state, h)
         display_state(state)
 
@@ -190,7 +224,8 @@ state = {
         [],
         [],
     ],
-    "empties": 2
+    "empties": 2,
+    "transformation_history": []
 }
 
 
@@ -202,4 +237,8 @@ histories = {}
 d=35
 foo(state, max_depth=d)
 print(histories.keys())
-replay_history(state, histories.get(max(histories.keys())))
+tranformation_history = histories.get(max(histories.keys()))["transformation_history"]
+replay_history(state, tranformation_history)
+print(len(tranformation_history))
+
+# print(get_contiguous_volume([0,1,1,1]))
